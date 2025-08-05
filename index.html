@@ -20,7 +20,12 @@
       color: white;
       cursor: pointer;
     }
-    button:hover {
+    button:disabled {
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
+    }
+    button:hover:enabled {
       background-color: #5e7c34;
     }
     audio, video {
@@ -94,6 +99,8 @@
     </label>
   </div>
 
+  <video id="liveCamera" autoplay muted playsinline style="display:none; max-width: 90%; margin: 0 auto;"></video>
+
   <button id="startBtn">Start Recording</button>
   <button id="stopBtn" disabled>Stop Recording</button>
 
@@ -113,6 +120,7 @@
     const stopBtn = document.getElementById('stopBtn');
     const audioPlayback = document.getElementById('audioPlayback');
     const videoPlayback = document.getElementById('videoPlayback');
+    const liveCamera = document.getElementById('liveCamera');
     const pauseBtn = document.getElementById('pauseBtn');
     const deleteBtn = document.getElementById('deleteBtn');
     const submitBtn = document.getElementById('submitBtn');
@@ -126,6 +134,21 @@
     let isVideo = false;
 
     const userParam = new URLSearchParams(window.location.search).get('user') || 'unknown';
+
+    videoSwitch.addEventListener('change', () => {
+      if (videoSwitch.checked) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+          .then(stream => {
+            liveCamera.srcObject = stream;
+            liveCamera.style.display = 'block';
+          });
+      } else {
+        if (liveCamera.srcObject) {
+          liveCamera.srcObject.getTracks().forEach(track => track.stop());
+        }
+        liveCamera.style.display = 'none';
+      }
+    });
 
     startBtn.onclick = async () => {
       isVideo = videoSwitch.checked;
@@ -148,6 +171,10 @@
             videoPlayback.src = url;
             videoPlayback.style.display = 'block';
             audioPlayback.style.display = 'none';
+            if (liveCamera.srcObject) {
+              liveCamera.srcObject.getTracks().forEach(track => track.stop());
+              liveCamera.style.display = 'none';
+            }
           } else {
             audioPlayback.src = url;
             audioPlayback.style.display = 'block';
@@ -203,14 +230,20 @@
       const formData = new FormData();
       formData.append('file', blob, filename);
 
-      // Trigger Make.com webhook upload here if needed
-
       status.textContent = 'Submitting...';
 
-      // Simulate short delay before redirect
-      setTimeout(() => {
-        window.location.href = 'https://momentsofmotherhood.glide.page';
-      }, 1000);
+      fetch('https://hook.eu2.make.com/nsbtpvkksxfjkifpe2our0hxn5ykf6ip', {
+        method: 'POST',
+        body: formData
+      }).then(() => {
+        status.textContent = '✅ Recording submitted. Redirecting...';
+        setTimeout(() => {
+          window.location.href = 'https://momentsofmotherhood.glide.page';
+        }, 1000);
+      }).catch(err => {
+        console.error(err);
+        status.textContent = '❌ Submission failed.';
+      });
     };
   </script>
 </body>
