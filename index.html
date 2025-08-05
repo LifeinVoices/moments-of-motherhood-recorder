@@ -3,146 +3,214 @@
 <head>
   <meta charset="UTF-8" />
   <title>Moments of Motherhood Recorder</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Cormorant Garamond', serif;
       text-align: center;
-      margin: 40px;
-      color: #222;
+      margin: 40px auto;
+      color: #333;
     }
     button {
-      font-size: 16px;
+      font-size: 18px;
       padding: 10px 20px;
       margin: 10px;
       border-radius: 8px;
       border: none;
-      cursor: pointer;
-      background-color: #8DA259;
+      background-color: #7A9946;
       color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #5e7c34;
     }
     audio, video {
-      margin: 20px auto;
       display: block;
-    }
-    .status {
-      margin: 10px 0;
-      font-size: 16px;
+      margin: 20px auto;
+      max-width: 90%;
     }
     #logo {
-      width: 180px;
+      width: 200px;
+      margin-bottom: 30px;
+    }
+    #controls {
+      margin-top: 20px;
+    }
+    #cameraToggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
       margin-bottom: 20px;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 26px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      border-radius: 26px;
+      transition: .4s;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: .4s;
+    }
+    input:checked + .slider {
+      background-color: #7A9946;
+    }
+    input:checked + .slider:before {
+      transform: translateX(24px);
     }
   </style>
 </head>
 <body>
-  <img id="logo" src="https://res.cloudinary.com/dpsiwijyq/image/upload/v1754367073/Moments_of_Motherhood_upfwmb.png" alt="Logo">
-  <h2>🎤 Record your moment</h2>
-  <p class="status" id="status">Ready to begin.</p>
-  <button id="toggleCamera">Turn On Camera</button>
+  <img id="logo" src="https://res.cloudinary.com/dpsiwijyq/image/upload/v1754367073/Moments_of_Motherhood_upfwmb.png" alt="Logo" />
+  <h2>🎙 Moments of Motherhood</h2>
+
+  <div id="cameraToggle">
+    <span>Camera</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="videoSwitch">
+      <span class="slider"></span>
+    </label>
+  </div>
+
   <button id="startBtn">Start Recording</button>
   <button id="stopBtn" disabled>Stop Recording</button>
-  <br>
-  <video id="preview" width="320" height="240" autoplay muted playsinline hidden></video>
-  <audio id="playback" controls hidden></audio>
-  <br>
-  <button id="pauseBtn" disabled>Pause</button>
-  <button id="deleteBtn" disabled>Delete</button>
-  <button id="submitBtn" disabled>Submit</button>
+
+  <audio id="audioPlayback" controls style="display:none;"></audio>
+  <video id="videoPlayback" controls style="display:none;"></video>
+
+  <div id="controls" style="display: none;">
+    <button id="pauseBtn">Pause</button>
+    <button id="deleteBtn">Delete</button>
+    <button id="submitBtn">Submit</button>
+  </div>
+
+  <p id="status"></p>
 
   <script>
-    let mediaRecorder, recordedChunks = [];
-    let stream;
-    const toggleBtn = document.getElementById('toggleCamera');
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
+    const audioPlayback = document.getElementById('audioPlayback');
+    const videoPlayback = document.getElementById('videoPlayback');
+    const pauseBtn = document.getElementById('pauseBtn');
     const deleteBtn = document.getElementById('deleteBtn');
     const submitBtn = document.getElementById('submitBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const preview = document.getElementById('preview');
-    const playback = document.getElementById('playback');
+    const controls = document.getElementById('controls');
     const status = document.getElementById('status');
-    let showCamera = false;
+    const videoSwitch = document.getElementById('videoSwitch');
 
-    toggleBtn.onclick = async () => {
-      showCamera = !showCamera;
-      toggleBtn.innerText = showCamera ? 'Turn Off Camera' : 'Turn On Camera';
-      if (showCamera && !stream) {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        preview.srcObject = stream;
-        preview.hidden = false;
-      } else if (!showCamera && stream) {
-        preview.srcObject.getTracks().forEach(track => track.stop());
-        preview.srcObject = null;
-        preview.hidden = true;
-        stream = null;
-      }
-    };
+    let mediaRecorder;
+    let recordedChunks = [];
+    let mediaStream;
+    let isVideo = false;
+
+    const userParam = new URLSearchParams(window.location.search).get('user') || 'unknown';
 
     startBtn.onclick = async () => {
-      status.textContent = "Recording...";
-      recordedChunks = [];
-      if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      isVideo = videoSwitch.checked;
+
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: isVideo
+        });
+
+        mediaRecorder = new MediaRecorder(mediaStream);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: isVideo ? 'video/webm' : 'audio/webm' });
+          const url = URL.createObjectURL(blob);
+
+          if (isVideo) {
+            videoPlayback.src = url;
+            videoPlayback.style.display = 'block';
+            audioPlayback.style.display = 'none';
+          } else {
+            audioPlayback.src = url;
+            audioPlayback.style.display = 'block';
+            videoPlayback.style.display = 'none';
+          }
+
+          controls.style.display = 'block';
+        };
+
+        mediaRecorder.start();
+        status.textContent = 'Recording...';
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+      } catch (err) {
+        console.error('Error accessing media devices.', err);
+        status.textContent = 'Could not access microphone/camera.';
       }
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = e => e.data.size > 0 && recordedChunks.push(e.data);
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-        playback.src = URL.createObjectURL(blob);
-        playback.hidden = false;
-        submitBtn.disabled = false;
-        deleteBtn.disabled = false;
-        pauseBtn.disabled = false;
-      };
-      mediaRecorder.start();
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
     };
 
     stopBtn.onclick = () => {
       mediaRecorder.stop();
+      mediaStream.getTracks().forEach(track => track.stop());
+      status.textContent = 'Recording stopped.';
       stopBtn.disabled = true;
-      startBtn.disabled = false;
-      status.textContent = "Recording complete.";
     };
 
     pauseBtn.onclick = () => {
-      if (playback.paused) {
-        playback.play();
-        pauseBtn.innerText = "Pause";
+      const media = isVideo ? videoPlayback : audioPlayback;
+      if (media.paused) {
+        media.play();
+        pauseBtn.textContent = 'Pause';
       } else {
-        playback.pause();
-        pauseBtn.innerText = "Resume";
+        media.pause();
+        pauseBtn.textContent = 'Resume';
       }
     };
 
     deleteBtn.onclick = () => {
-      playback.src = "";
-      playback.hidden = true;
       recordedChunks = [];
-      submitBtn.disabled = true;
-      deleteBtn.disabled = true;
-      pauseBtn.disabled = true;
-      status.textContent = "Recording deleted.";
+      audioPlayback.src = '';
+      videoPlayback.src = '';
+      audioPlayback.style.display = 'none';
+      videoPlayback.style.display = 'none';
+      controls.style.display = 'none';
+      startBtn.disabled = false;
+      status.textContent = 'Recording deleted. Ready to record again.';
     };
 
     submitBtn.onclick = () => {
-      status.textContent = "Submitting...";
-      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-      const formData = new FormData();
-      formData.append("audio", blob, "recording.webm");
+      const blob = new Blob(recordedChunks, { type: isVideo ? 'video/webm' : 'audio/webm' });
+      const filename = `${new Date().toISOString().replace(/[:.]/g, '-')}_${userParam}.${isVideo ? 'webm' : 'webm'}`;
 
-      // Send to Make webhook or directly to Drive
-      fetch("https://hook.integromat.com/YOUR_WEBHOOK_URL", {
-        method: "POST",
-        body: formData
-      }).then(() => {
-        status.textContent = "Uploaded successfully.";
-        window.location.href = "https://momentsofmotherhood.glide.page";
-      }).catch(() => {
-        status.textContent = "Upload failed.";
-      });
+      const formData = new FormData();
+      formData.append('file', blob, filename);
+
+      // Trigger Make.com webhook upload here if needed
+
+      status.textContent = 'Submitting...';
+
+      // Simulate short delay before redirect
+      setTimeout(() => {
+        window.location.href = 'https://momentsofmotherhood.glide.page';
+      }, 1000);
     };
   </script>
 </body>
