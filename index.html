@@ -21,7 +21,7 @@
     button {
       font-size: 16px;
       padding: 10px 20px;
-      margin: 8px;
+      margin: 8px 4px;
       border-radius: 8px;
       border: none;
       background-color: #e0e0e0;
@@ -46,7 +46,8 @@
 </head>
 <body>
 
-  <img src="https://drive.google.com/uc?export=view&id=1qA2qqJgbIRDjv9oD_hdYopGEgRf_UBZi" alt="Logo" width="160" />
+  <!-- Logo -->
+  <img src="https://res.cloudinary.com/dpsiwijyq/image/upload/v1754367073/Moments_of_Motherhood_upfwmb.png" alt="Moments of Motherhood Logo" width="160" />
 
   <h2>Record Your Moment</h2>
 
@@ -56,16 +57,18 @@
   <div class="status" id="statusText">Press start when you're ready.</div>
 
   <div>
-    <button id="toggleCameraBtn">Turn on Camera</button>
+    <button id="toggleCameraBtn">Toggle Camera</button>
     <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
     <button id="pauseBtn" disabled>Pause</button>
     <button id="deleteBtn" disabled>Delete</button>
-    <button id="stopBtn" disabled>Stop</button>
     <button id="submitBtn" disabled>Submit</button>
   </div>
 
   <script>
     let mediaRecorder, chunks = [], stream;
+    let usingCamera = false;
+
     const preview = document.getElementById("preview");
     const playback = document.getElementById("playback");
     const toggleCameraBtn = document.getElementById("toggleCameraBtn");
@@ -82,21 +85,30 @@
       if (!stream) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          usingCamera = true;
           preview.srcObject = stream;
           preview.classList.remove("hidden");
         } catch (err) {
-          alert("Camera/microphone permission denied.");
+          // fallback to audio only
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            usingCamera = false;
+            preview.classList.add("hidden");
+          } catch (audioErr) {
+            alert("Camera or microphone permission denied.");
+          }
         }
       } else {
         stream.getTracks().forEach(t => t.stop());
         stream = null;
         preview.srcObject = null;
         preview.classList.add("hidden");
+        usingCamera = false;
       }
     };
 
     startBtn.onclick = () => {
-      if (!stream) return alert("Please turn on your camera first.");
+      if (!stream) return alert("Please turn on your camera or mic first.");
 
       chunks = [];
       mediaRecorder = new MediaRecorder(stream);
@@ -118,6 +130,7 @@
       pauseBtn.disabled = false;
       stopBtn.disabled = false;
       deleteBtn.disabled = false;
+      toggleCameraBtn.disabled = true;
     };
 
     pauseBtn.onclick = () => {
@@ -139,7 +152,6 @@
         isRecording = false;
         pauseBtn.disabled = true;
         stopBtn.disabled = true;
-        deleteBtn.disabled = false;
         startBtn.disabled = false;
         toggleCameraBtn.disabled = false;
       }
@@ -149,13 +161,19 @@
       chunks = [];
       playback.src = "";
       playback.classList.add("hidden");
+      preview.classList.add("hidden");
       submitBtn.disabled = true;
       statusText.textContent = "Recording deleted. Ready to start again.";
+
+      // reset button states
+      pauseBtn.disabled = true;
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      toggleCameraBtn.disabled = false;
     };
 
     submitBtn.onclick = () => {
       statusText.textContent = "Redirecting...";
-      // Redirect to Glide app
       window.location.href = "https://momentsofmotherhood.glide.page";
     };
   </script>
