@@ -57,7 +57,7 @@
   <div class="status" id="statusText">Press start when you're ready.</div>
 
   <div>
-    <button id="toggleCameraBtn">Toggle Camera</button>
+    <button id="toggleCameraBtn">Turn Camera On</button>
     <button id="startBtn">Start Recording</button>
     <button id="stopBtn" disabled>Stop Recording</button>
     <button id="pauseBtn" disabled>Pause</button>
@@ -88,6 +88,7 @@
         stream = null;
         preview.srcObject = null;
         preview.classList.add("hidden");
+        toggleCameraBtn.textContent = "Turn Camera On";
       }
     }
 
@@ -105,10 +106,12 @@
         usingCamera = true;
         preview.srcObject = stream;
         preview.classList.remove("hidden");
+        toggleCameraBtn.textContent = "Turn Camera Off";
         statusText.textContent = "Camera is on.";
       } catch (err) {
         alert("Could not access camera/audio: " + err.message);
         usingCamera = false;
+        toggleCameraBtn.textContent = "Turn Camera On";
       }
     };
 
@@ -118,6 +121,8 @@
         try {
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           usingCamera = false;
+          preview.classList.add("hidden");
+          toggleCameraBtn.textContent = "Turn Camera On";
         } catch (err) {
           alert("Please allow microphone access.");
           return;
