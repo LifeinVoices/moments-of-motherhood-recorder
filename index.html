@@ -2,137 +2,148 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Moments of Motherhood Recorder</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: "Cormorant Garamond", serif;
-      background-color: #fff;
-      color: #333;
+      font-family: 'Cormorant Garamond', serif;
       text-align: center;
-      padding: 40px 20px;
-    }
-    h1 {
-      font-size: 2.5em;
-      margin-bottom: 10px;
-    }
-    p {
-      font-size: 1.25em;
-      margin-bottom: 30px;
-    }
-    video, audio {
-      margin-top: 20px;
-      width: 100%;
-      max-width: 400px;
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 40px;
+      color: #222;
     }
     button {
+      font-size: 16px;
       padding: 10px 20px;
-      font-size: 1em;
+      margin: 10px;
       border-radius: 8px;
       border: none;
-      margin: 10px;
       cursor: pointer;
-      background-color: #7a944d;
-      color: #fff;
+      background-color: #8DA259;
+      color: white;
+    }
+    audio, video {
+      margin: 20px auto;
+      display: block;
+    }
+    .status {
+      margin: 10px 0;
+      font-size: 16px;
     }
     #logo {
       width: 180px;
       margin-bottom: 20px;
     }
-    #status {
-      font-size: 1.1em;
-      margin-top: 20px;
-    }
   </style>
 </head>
 <body>
-  <img id="logo" src="https://res.cloudinary.com/dpsiwijyq/image/upload/v1754367073/Moments_of_Motherhood_upfwmb.png" alt="Moments of Motherhood Logo">
-  <h1>Record Your Memory</h1>
-  <p>Tap below to begin recording your audio or video memory.</p>
-  <video id="preview" playsinline autoplay muted></video>
-  <audio id="audioPlayback" controls style="display:none;"></audio>
-
-  <div>
-    <button onclick="startRecording()">Start Recording</button>
-    <button onclick="stopRecording()">Stop Recording</button>
-    <button onclick="toggleCamera()">Toggle Camera</button>
-  </div>
-  <p id="status"></p>
+  <img id="logo" src="https://res.cloudinary.com/dpsiwijyq/image/upload/v1754367073/Moments_of_Motherhood_upfwmb.png" alt="Logo">
+  <h2>🎤 Record your moment</h2>
+  <p class="status" id="status">Ready to begin.</p>
+  <button id="toggleCamera">Turn On Camera</button>
+  <button id="startBtn">Start Recording</button>
+  <button id="stopBtn" disabled>Stop Recording</button>
+  <br>
+  <video id="preview" width="320" height="240" autoplay muted playsinline hidden></video>
+  <audio id="playback" controls hidden></audio>
+  <br>
+  <button id="pauseBtn" disabled>Pause</button>
+  <button id="deleteBtn" disabled>Delete</button>
+  <button id="submitBtn" disabled>Submit</button>
 
   <script>
-    let mediaRecorder;
-    let recordedChunks = [];
-    let useVideo = false;
+    let mediaRecorder, recordedChunks = [];
     let stream;
+    const toggleBtn = document.getElementById('toggleCamera');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const preview = document.getElementById('preview');
+    const playback = document.getElementById('playback');
+    const status = document.getElementById('status');
+    let showCamera = false;
 
-    async function getStream() {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+    toggleBtn.onclick = async () => {
+      showCamera = !showCamera;
+      toggleBtn.innerText = showCamera ? 'Turn Off Camera' : 'Turn On Camera';
+      if (showCamera && !stream) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        preview.srcObject = stream;
+        preview.hidden = false;
+      } else if (!showCamera && stream) {
+        preview.srcObject.getTracks().forEach(track => track.stop());
+        preview.srcObject = null;
+        preview.hidden = true;
+        stream = null;
       }
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: useVideo
-      });
-      document.getElementById("preview").style.display = useVideo ? 'block' : 'none';
-      document.getElementById("audioPlayback").style.display = useVideo ? 'none' : 'block';
-      if (useVideo) document.getElementById("preview").srcObject = stream;
-    }
+    };
 
-    async function startRecording() {
-      await getStream();
+    startBtn.onclick = async () => {
+      status.textContent = "Recording...";
       recordedChunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          recordedChunks.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: useVideo ? 'video/webm' : 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        if (useVideo) {
-          const video = document.getElementById("preview");
-          video.srcObject = null;
-          video.src = url;
-          video.controls = true;
-          video.muted = false;
-        } else {
-          const audio = document.getElementById("audioPlayback");
-          audio.src = url;
-          audio.style.display = 'block';
-        }
-
-        // Optional: Upload to Drive via Make.com webhook
-        fetch("https://hook.integromat.com/YOUR_WEBHOOK_URL", {
-          method: "POST",
-          body: blob
-        });
-
-        document.getElementById("status").textContent = "Recording uploaded. Redirecting...";
-        setTimeout(() => {
-          window.location.href = "https://momentsofmotherhood.glide.page";
-        }, 3000);
-      };
-
-      mediaRecorder.start();
-      document.getElementById("status").textContent = "Recording...";
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
-        mediaRecorder.stop();
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
-    }
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => e.data.size > 0 && recordedChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        playback.src = URL.createObjectURL(blob);
+        playback.hidden = false;
+        submitBtn.disabled = false;
+        deleteBtn.disabled = false;
+        pauseBtn.disabled = false;
+      };
+      mediaRecorder.start();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
 
-    function toggleCamera() {
-      useVideo = !useVideo;
-      document.getElementById("status").textContent = useVideo ? "Switched to video mode." : "Switched to audio-only mode.";
-    }
+    stopBtn.onclick = () => {
+      mediaRecorder.stop();
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      status.textContent = "Recording complete.";
+    };
+
+    pauseBtn.onclick = () => {
+      if (playback.paused) {
+        playback.play();
+        pauseBtn.innerText = "Pause";
+      } else {
+        playback.pause();
+        pauseBtn.innerText = "Resume";
+      }
+    };
+
+    deleteBtn.onclick = () => {
+      playback.src = "";
+      playback.hidden = true;
+      recordedChunks = [];
+      submitBtn.disabled = true;
+      deleteBtn.disabled = true;
+      pauseBtn.disabled = true;
+      status.textContent = "Recording deleted.";
+    };
+
+    submitBtn.onclick = () => {
+      status.textContent = "Submitting...";
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append("audio", blob, "recording.webm");
+
+      // Send to Make webhook or directly to Drive
+      fetch("https://hook.integromat.com/YOUR_WEBHOOK_URL", {
+        method: "POST",
+        body: formData
+      }).then(() => {
+        status.textContent = "Uploaded successfully.";
+        window.location.href = "https://momentsofmotherhood.glide.page";
+      }).catch(() => {
+        status.textContent = "Upload failed.";
+      });
+    };
   </script>
 </body>
 </html>
