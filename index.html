@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moments of Motherhood Recorder</title>
+  <style>
+    body {
+      font-family: "Cormorant Garamond", serif;
+      background-color: #fff;
+      color: #333;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+    p {
+      font-size: 1.25em;
+      margin-bottom: 30px;
+    }
+    video, audio {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 400px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      border-radius: 8px;
+      border: none;
+      margin: 10px;
+      cursor: pointer;
+      background-color: #7a944d;
+      color: #fff;
+    }
+    #logo {
+      width: 180px;
+      margin-bottom: 20px;
+    }
+    #status {
+      font-size: 1.1em;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <img id="logo" src="https://drive.google.com/uc?export=view&id=1f9jXUrA2LacZTL1Xujj6C" alt="Moments of Motherhood Logo">
+  <h1>Record Your Memory</h1>
+  <p>Tap below to begin recording your audio or video memory.</p>
+  <video id="preview" playsinline autoplay muted></video>
+  <audio id="audioPlayback" controls style="display:none;"></audio>
+
+  <div>
+    <button onclick="startRecording()">Start Recording</button>
+    <button onclick="stopRecording()">Stop Recording</button>
+    <button onclick="toggleCamera()">Toggle Camera</button>
+  </div>
+  <p id="status"></p>
+
+  <script>
+    let mediaRecorder;
+    let recordedChunks = [];
+    let useVideo = false;
+    let stream;
+
+    async function getStream() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: useVideo
+      });
+      document.getElementById("preview").style.display = useVideo ? 'block' : 'none';
+      document.getElementById("audioPlayback").style.display = useVideo ? 'none' : 'block';
+      if (useVideo) document.getElementById("preview").srcObject = stream;
+    }
+
+    async function startRecording() {
+      await getStream();
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: useVideo ? 'video/webm' : 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        if (useVideo) {
+          const video = document.getElementById("preview");
+          video.srcObject = null;
+          video.src = url;
+          video.controls = true;
+          video.muted = false;
+        } else {
+          const audio = document.getElementById("audioPlayback");
+          audio.src = url;
+          audio.style.display = 'block';
+        }
+
+        // Optional: Upload to Drive via Make.com webhook
+        fetch("https://hook.integromat.com/YOUR_WEBHOOK_URL", {
+          method: "POST",
+          body: blob
+        });
+
+        document.getElementById("status").textContent = "Recording uploaded. Redirecting...";
+        setTimeout(() => {
+          window.location.href = "https://momentsofmotherhood.glide.page";
+        }, 3000);
+      };
+
+      mediaRecorder.start();
+      document.getElementById("status").textContent = "Recording...";
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+    }
+
+    function toggleCamera() {
+      useVideo = !useVideo;
+      document.getElementById("status").textContent = useVideo ? "Switched to video mode." : "Switched to audio-only mode.";
+    }
+  </script>
+</body>
+</html>
