@@ -1,25 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moments of Motherhood Recorder</title>
+  <style>
+    body {
+      font-family: 'Cormorant Garamond', serif;
+      text-align: center;
+      background-color: #fffaf7;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+
+    video, audio {
+      margin: 20px auto;
+      display: block;
+      max-width: 100%;
+      border-radius: 12px;
+    }
+
+    div {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button {
+      font-size: 16px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background-color: #e0e0e0;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .status {
+      font-size: 16px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
 <body>
-  <h3>Test Upload to Make</h3>
-  <input type="file" id="fileInput" />
-  <button onclick="upload()">Send to Make</button>
+
+  <!-- Logo -->
+  <img src="https://res.cloudinary.com/dpsiwijyq/image/upload/v1754367073/Moments_of_Motherhood_upfwmb.png" alt="Moments of Motherhood Logo" width="160" />
+
+  <h2>Record Your Moment</h2>
+
+  <video id="preview" autoplay muted class="hidden"></video>
+  <video id="playback" controls class="hidden"></video>
+
+  <div class="status" id="statusText">Press start when you're ready.</div>
+
+  <div>
+    <button id="toggleCameraBtn">Turn Camera On</button>
+    <button id="startBtn">Start Recording</button>
+    <button id="stopBtn" disabled>Stop Recording</button>
+    <button id="pauseBtn" disabled>Pause</button>
+    <button id="deleteBtn" disabled>Delete</button>
+    <button id="submitBtn" disabled>Submit</button>
+  </div>
 
   <script>
-    async function upload() {
-      const fileInput = document.getElementById("fileInput");
-      if (!fileInput.files.length) return alert("Select a file");
+    let mediaRecorder, chunks = [];
+    let stream = null;
+    let isRecording = false;
+    let usingCamera = false;
+    let recordedBlob = null;
+
+    const preview = document.getElementById("preview");
+    const playback = document.getElementById("playback");
+    const toggleCameraBtn = document.getElementById("toggleCameraBtn");
+    const startBtn = document.getElementById("startBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const deleteBtn = document.getElementById("deleteBtn");
+    const submitBtn = document.getElementById("submitBtn");
+    const statusText = document.getElementById("statusText");
+
+    function stopStreamTracks() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+        preview.srcObject = null;
+        preview.classList.add("hidden");
+        toggleCameraBtn.textContent = "Turn Camera On";
+      }
+    }
+
+    toggleCameraBtn.onclick = async () => {
+      if (stream) {
+        stopStreamTracks();
+        usingCamera = false;
+        statusText.textContent = "Camera turned off.";
+        return;
+      }
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        usingCamera = true;
+        preview.srcObject = stream;
+        preview.classList.remove("hidden");
+        toggleCameraBtn.textContent = "Turn Camera Off";
+        statusText.textContent = "Camera is on.";
+      } catch (err) {
+        alert("Could not access camera/audio: " + err.message);
+        usingCamera = false;
+        toggleCameraBtn.textContent = "Turn Camera On";
+      }
+    };
+
+    startBtn.onclick = async () => {
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          usingCamera = false;
+          preview.classList.add("hidden");
+          toggleCameraBtn.textContent = "Turn Camera On";
+        } catch (err) {
+          alert("Please allow microphone access.");
+          return;
+        }
+      }
+
+      chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(chunks, { type: "video/webm" });
+        playback.src = URL.createObjectURL(recordedBlob);
+        playback.classList.remove("hidden");
+        preview.classList.add("hidden");
+        submitBtn.disabled = false;
+        statusText.textContent = "Recording complete. Review before submitting.";
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      startBtn.disabled = true;
+      pauseBtn.disabled = false;
+      stopBtn.disabled = false;
+      deleteBtn.disabled = false;
+      toggleCameraBtn.disabled = true;
+      statusText.textContent = "Recording...";
+    };
+
+    pauseBtn.onclick = () => {
+      if (!mediaRecorder) return;
+      if (mediaRecorder.state === "recording") {
+        mediaRecorder.pause();
+        pauseBtn.textContent = "Resume";
+        statusText.textContent = "Paused.";
+      } else if (mediaRecorder.state === "paused") {
+        mediaRecorder.resume();
+        pauseBtn.textContent = "Pause";
+        statusText.textContent = "Recording...";
+      }
+    };
+
+    stopBtn.onclick = () => {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        pauseBtn.disabled = true;
+        stopBtn.disabled = true;
+        startBtn.disabled = false;
+        toggleCameraBtn.disabled = false;
+      }
+    };
+
+    deleteBtn.onclick = () => {
+      chunks = [];
+      recordedBlob = null;
+      playback.src = "";
+      playback.classList.add("hidden");
+      submitBtn.disabled = true;
+      statusText.textContent = "Recording deleted. Ready to start again.";
+
+      pauseBtn.disabled = true;
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      toggleCameraBtn.disabled = false;
+
+      stopStreamTracks();
+    };
+
+    submitBtn.onclick = async () => {
+      if (!recordedBlob) return alert("No recording to submit.");
+
+      statusText.textContent = "Uploading...";
 
       const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
+      const fileName = `moment-${Date.now()}.webm`;
+      formData.append("file", recordedBlob, fileName);
 
-      const res = await fetch("https://hook.eu2.make.com/u3erd1mk1hnfks7v4lsf8ev6w7zstbs1", {
-        method: "POST",
-        body: formData
-      });
-
-      alert("Upload complete: " + res.status);
-    }
+      try {
+        await fetch("https://hook.eu2.make.com/u3erd1mk1hnfks7v4lsf8ev6w7zstbs1", {
+          method: "POST",
+          body: formData
+        });
+        statusText.textContent = "Uploaded successfully. Redirecting...";
+        window.location.href = "https://momentsofmotherhood.glide.page";
+      } catch (error) {
+        statusText.textContent = "Upload failed. Please try again.";
+        console.error(error);
+      }
+    };
   </script>
+
 </body>
 </html>
