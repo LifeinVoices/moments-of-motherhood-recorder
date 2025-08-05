@@ -66,7 +66,9 @@
   </div>
 
   <script>
-    let mediaRecorder, chunks = [], stream;
+    let mediaRecorder, chunks = [];
+    let stream = null;
+    let isRecording = false;
     let usingCamera = false;
 
     const preview = document.getElementById("preview");
@@ -79,36 +81,48 @@
     const submitBtn = document.getElementById("submitBtn");
     const statusText = document.getElementById("statusText");
 
-    let isRecording = false;
-
-    toggleCameraBtn.onclick = async () => {
-      if (!stream) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          usingCamera = true;
-          preview.srcObject = stream;
-          preview.classList.remove("hidden");
-        } catch (err) {
-          // fallback to audio only
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            usingCamera = false;
-            preview.classList.add("hidden");
-          } catch (audioErr) {
-            alert("Camera or microphone permission denied.");
-          }
-        }
-      } else {
-        stream.getTracks().forEach(t => t.stop());
+    // Fully stop and clean up media stream
+    function stopStreamTracks() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
         stream = null;
         preview.srcObject = null;
         preview.classList.add("hidden");
+      }
+    }
+
+    // CAMERA TOGGLE
+    toggleCameraBtn.onclick = async () => {
+      if (stream) {
+        stopStreamTracks();
+        usingCamera = false;
+        statusText.textContent = "Camera turned off.";
+        return;
+      }
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        usingCamera = true;
+        preview.srcObject = stream;
+        preview.classList.remove("hidden");
+        statusText.textContent = "Camera is on.";
+      } catch (err) {
+        alert("Could not access camera/audio: " + err.message);
         usingCamera = false;
       }
     };
 
-    startBtn.onclick = () => {
-      if (!stream) return alert("Please turn on your camera or mic first.");
+    // START RECORDING
+    startBtn.onclick = async () => {
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          usingCamera = false;
+        } catch (err) {
+          alert("Please allow microphone access.");
+          return;
+        }
+      }
 
       chunks = [];
       mediaRecorder = new MediaRecorder(stream);
@@ -124,15 +138,15 @@
 
       mediaRecorder.start();
       isRecording = true;
-      statusText.textContent = "Recording...";
-
       startBtn.disabled = true;
       pauseBtn.disabled = false;
       stopBtn.disabled = false;
       deleteBtn.disabled = false;
       toggleCameraBtn.disabled = true;
+      statusText.textContent = "Recording...";
     };
 
+    // PAUSE
     pauseBtn.onclick = () => {
       if (!mediaRecorder) return;
       if (mediaRecorder.state === "recording") {
@@ -146,6 +160,7 @@
       }
     };
 
+    // STOP
     stopBtn.onclick = () => {
       if (mediaRecorder && isRecording) {
         mediaRecorder.stop();
@@ -157,21 +172,23 @@
       }
     };
 
+    // DELETE
     deleteBtn.onclick = () => {
       chunks = [];
       playback.src = "";
       playback.classList.add("hidden");
-      preview.classList.add("hidden");
       submitBtn.disabled = true;
       statusText.textContent = "Recording deleted. Ready to start again.";
 
-      // reset button states
       pauseBtn.disabled = true;
       stopBtn.disabled = true;
       startBtn.disabled = false;
       toggleCameraBtn.disabled = false;
+
+      stopStreamTracks(); // kill any open tracks
     };
 
+    // SUBMIT
     submitBtn.onclick = () => {
       statusText.textContent = "Redirecting...";
       window.location.href = "https://momentsofmotherhood.glide.page";
