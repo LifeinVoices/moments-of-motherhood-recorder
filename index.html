@@ -142,10 +142,17 @@
       }
 
       chunks = [];
-      mediaRecorder = new MediaRecorder(stream);
+
+      // ✅ Explicit MIME type to support Whisper audio decoding
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "video/webm;codecs=vp8,opus"
+      });
+
       mediaRecorder.ondataavailable = e => chunks.push(e.data);
+
       mediaRecorder.onstop = () => {
-        recordedBlob = new Blob(chunks, { type: "video/webm" });
+        // ✅ Match MIME type on Blob creation too
+        recordedBlob = new Blob(chunks, { type: "video/webm;codecs=vp8,opus" });
         playback.src = URL.createObjectURL(recordedBlob);
         playback.classList.remove("hidden");
         preview.classList.add("hidden");
@@ -215,14 +222,13 @@
       statusText.textContent = "Uploading...";
 
       // Clean the email for the filename
-const cleanedEmail = userEmail.replace(/[@.]/g, "_");
-const fileName = `MOM_${cleanedEmail}_${Date.now()}.webm`;
+      const cleanedEmail = userEmail.replace(/[@.]/g, "_");
+      const fileName = `MOM_${cleanedEmail}_${Date.now()}.webm`;
 
-const formData = new FormData();
-formData.append("file", recordedBlob, fileName);        // ✅ clean name
-formData.append("user_email", userEmail);               // ✅ raw email (for Glide match)
-formData.append("cleaned_email", cleanedEmail);         // ✅ optional but useful
-
+      const formData = new FormData();
+      formData.append("file", recordedBlob, fileName);        // ✅ clean name
+      formData.append("user_email", userEmail);               // ✅ raw email (for Glide match)
+      formData.append("cleaned_email", cleanedEmail);         // ✅ optional but useful
 
       try {
         await fetch("https://hook.eu2.make.com/u3erd1mk1hnfks7v4lsf8ev6w7zstbs1", {
